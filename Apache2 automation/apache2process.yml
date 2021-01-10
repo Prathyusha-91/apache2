@@ -1,0 +1,5 @@
+---
+  - name: Shutdown httpd Service
+    systemd:
+        name: httpd
+        state: stopped

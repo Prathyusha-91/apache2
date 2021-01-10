@@ -1,0 +1,99 @@
+- hosts: localhost
+  gather_facts: yes
+  become: true
+  become_user: root
+
+  tasks:
+
+     - name: "Gathering list of packages"
+       package_facts:
+         manager: "auto"
+
+     - name: "Status of httpd"
+       debug:
+         msg: "Apache2 Installed"
+       when: "'httpd' in ansible_facts.packages"
+       register: apachepresent
+     
+     - name: "Apache2 Version" 
+       shell: 'httpd -v'
+       register: apacheVersion
+       when: apachepresent is not skipped
+     
+     - debug: 
+         msg: "{{ apacheVersion.stdout_lines[0] }} in Path '/etc/httpd/conf/httpd.conf'"
+       when: apachepresent is not skipped 
+
+     - name: "Status of httpd"
+       debug:
+         msg: "Apache2 is not Installed"
+       when: "'httpd' not in ansible_facts.packages"
+       register: apacheabsent
+    
+     - name: Get packages from S3 bucket
+       aws_s3:
+         bucket: httpdbucket
+         mode: list
+         aws_access_key: "input aws access key here"
+         aws_secret_key: "input aws secret key here"
+       register: package_list
+       when: apacheabsent is not skipped
+
+     - name: Create Download Directory if not present
+       file:
+         path: /opt/local/apache2/
+         state: directory 
+       when: apacheabsent is not skipped
+
+     - name: Download packages from S3 Bucket
+       aws_s3:
+         mode: get
+         bucket: httpdbucket
+         object: "{{ item }}"
+         dest: "/opt/local/apache2{{ item|basename }}"
+         aws_access_key: "input aws access key here"
+         aws_secret_key: "input aws secret key here"
+       with_items: "{{ package_list.s3_keys }}"
+       when: apacheabsent is not skipped
+    
+     - name: Install httpd
+       yum: 
+         name: 
+            - /etc/ansible/httpdpackage/httpd-2.4.37-30.module+el8.3.0+7001+0766b9e7.x86_64.rpm
+            - /etc/ansible/httpdpackage/mod_http2-1.15.7-2.module+el8.3.0+7670+8bf57d29.x86_64.rpm
+            - /etc/ansible/httpdpackage/mod_ssl-2.4.37-30.module+el8.3.0+7001+0766b9e7.x86_64.rpm
+         state: present
+       register: installationresult
+       retries: 10
+       when: apacheabsent is not skipped
+
+     - name: Start httpd Service
+       systemd:
+          name: httpd
+          state: started
+       when: apacheabsent is not skipped
+     
+     - name: "Gathering list of packages"
+       package_facts:
+         manager: "auto"
+
+     - name: "Status of httpd"
+       debug:
+         msg: "Apache2 Installed"
+       when: "'httpd' in ansible_facts.packages"
+       register: apachepresent
+
+     - name: "Apache2 Version"
+       shell: 'httpd -v'
+       register: apacheVersion
+       when: apachepresent is not skipped
+
+     - debug:
+         msg: "{{ apacheVersion.stdout_lines[0] }} in Path '/etc/httpd/conf/httpd.conf'"
+       when: apachepresent is not skipped
+
+     - name: "Status of httpd"
+       debug:
+         msg: "Apache2 is not Installed"
+       when: "'httpd' not in ansible_facts.packages"
+       register: apacheabsent

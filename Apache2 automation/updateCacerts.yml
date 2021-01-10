@@ -1,0 +1,23 @@
+- hosts: localhost
+  gather_facts: yes
+  become: true
+  become_user: root
+
+  tasks:
+     
+     - name: "Update Cert Location in httpd.conf"
+       replace:
+          path: /etc/httpd/conf.d/ssl.conf
+          regexp: "{{ item.template }}"
+          replace: "{{ item.location }}"
+       with_items:
+            - { template : "/etc/pki/tls/certs/localhost.crt" , location : "" }
+            - { template : "/etc/pki/tls/private/localhost.key" , location : "" }
+            - { template : "/etc/pki/tls/certs/server-chain.crt" , location : "" }
+            
+       notify:      
+         - restart httpd
+   
+  handlers:
+     - name: restart httpd 
+       service: name=httpd state=restarted
